@@ -1,4 +1,10 @@
-1.0.0
+1.0.1
+
+修改settings配置读入方式
+
+增加alpha_tools
+
+# 1.0.0
 
 alphalens040
 
