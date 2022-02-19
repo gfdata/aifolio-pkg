@@ -4,12 +4,11 @@
 # ----------------------
 from aiutils.cache import PickleCache
 
-from .settings import AIFOLIO_CONFIG
+from .settings import ALPHA_CHACHE_DIR, ALPHA_CHACHE_S
 from .alphacn021.ana_calc import AnalyzerCalc
 
 
-@PickleCache.cached_function_result_for_a_time(cache_dir=AIFOLIO_CONFIG.factor_cache_dir,
-                                               cache_second=AIFOLIO_CONFIG.factor_cache_s)
+@PickleCache.cached_function_result_for_a_time(cache_dir=ALPHA_CHACHE_DIR, cache_second=ALPHA_CHACHE_S)
 def cache_analyzer_calc(
         factor, prices,
         groupby=None, groupby_labels=None, weights=None, binning_by_group=False,
@@ -22,5 +21,5 @@ def cache_analyzer_calc(
 
 
 def compute_forward_returns(prices, periods=(1, 5, 10), filter_zscore=None):
-    from alphacn021.alphalens import compute_forward_returns
+    from aifolio.alphacn021.alphalens import compute_forward_returns
     return compute_forward_returns(prices, periods=periods, filter_zscore=filter_zscore)

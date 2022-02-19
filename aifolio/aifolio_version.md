@@ -6,6 +6,10 @@
 
 # 1.0.0
 
+alphalens040 和 alphacn021 区别
+
+* compute_forward_returns：alphacn021不用传factor参数，而alphalens040要传入
+
 alphalens040
 
 * 最新0.4.0版本，计算n period 的收益有问题(plot_cumulative_returns超过1D时)

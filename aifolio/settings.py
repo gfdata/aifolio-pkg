@@ -17,8 +17,8 @@ def _this_config():
     _default = {
         # 文件存储的目录
         "cache_dir": os.path.join(default_dir, f'cache.{name}'),
-        "factor_cache_dir": os.path.join(default_dir, f'cache.{name}', 'factor'),
-        "factor_cache_s": 3600 * 24 * 7,
+        "alpha_cache_dir": os.path.join(default_dir, f'cache.{name}', 'alphaxx'),
+        "alpha_cache_s": 3600 * 24 * 7,
     }
     # 其它位置的配置
     cf = ConfigLoading(_default, app_name=name)
@@ -32,3 +32,7 @@ def _this_config():
 
 
 AIFOLIO_CONFIG = _this_config()
+
+# alphalens alphacn 分析包的缓存
+ALPHA_CHACHE_DIR = AIFOLIO_CONFIG.alpha_cache_dir
+ALPHA_CHACHE_S = AIFOLIO_CONFIG.alpha_cache_s
