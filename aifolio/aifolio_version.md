@@ -1,6 +1,7 @@
 1.0.2
 
-pyfolio_tools增加对rqalpha结果的转换
+pyfolio_tools.parse_rqalpha
+* 修复框架结果的转换
 
 # 1.0.1
 
