@@ -1,4 +1,8 @@
-1.0.1
+1.0.2
+
+pyfolio_tools增加对rqalpha结果的转换
+
+# 1.0.1
 
 修改settings配置读入方式
 

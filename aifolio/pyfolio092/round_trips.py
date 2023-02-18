@@ -19,6 +19,7 @@ from collections import deque, OrderedDict
 
 import pandas as pd
 import numpy as np
+from pandas.core.base import SpecificationError
 
 from .utils import print_table, format_asset
 
@@ -27,12 +28,12 @@ PNL_STATS = OrderedDict(
      ('Gross profit', lambda x: x[x > 0].sum()),
      ('Gross loss', lambda x: x[x < 0].sum()),
      ('Profit factor', lambda x: x[x > 0].sum() / x[x < 0].abs().sum()
-      if x[x < 0].abs().sum() != 0 else np.nan),
+     if x[x < 0].abs().sum() != 0 else np.nan),
      ('Avg. trade net profit', 'mean'),
      ('Avg. winning trade', lambda x: x[x > 0].mean()),
      ('Avg. losing trade', lambda x: x[x < 0].mean()),
      ('Ratio Avg. Win:Avg. Loss', lambda x: x[x > 0].mean() /
-      x[x < 0].abs().mean() if x[x < 0].abs().mean() != 0 else np.nan),
+                                            x[x < 0].abs().mean() if x[x < 0].abs().mean() != 0 else np.nan),
      ('Largest winning trade', 'max'),
      ('Largest losing trade', 'min'),
      ])
@@ -74,18 +75,34 @@ DURATION_STATS = OrderedDict(
 
 
 def agg_all_long_short(round_trips, col, stats_dict):
-    stats_all = (round_trips
-                 .assign(ones=1)
-                 .groupby('ones')[col]
-                 .agg(stats_dict)
-                 .T
-                 .rename(columns={1.0: 'All trades'}))
-    stats_long_short = (round_trips
-                        .groupby('long')[col]
-                        .agg(stats_dict)
-                        .T
-                        .rename(columns={False: 'Short trades',
-                                         True: 'Long trades'}))
+    # fixmeok: SpecificationError: nested renamer is not supported
+    try:
+        stats_all = (round_trips
+                     .assign(ones=1)
+                     .groupby('ones')[col]
+                     .agg(stats_dict)
+                     .T
+                     .rename(columns={1.0: 'All trades'}))
+        stats_long_short = (round_trips
+                            .groupby('long')[col]
+                            .agg(stats_dict)
+                            .T
+                            .rename(columns={False: 'Short trades',
+                                             True: 'Long trades'}))
+    except SpecificationError as e:
+        stats_dict_list = [(k, v) for k, v in stats_dict.items()]
+        stats_all = (round_trips
+                     .assign(ones=1)
+                     .groupby('ones')[col]
+                     .agg(stats_dict_list)
+                     .T
+                     .rename(columns={1.0: 'All trades'}))
+        stats_long_short = (round_trips
+                            .groupby('long')[col]
+                            .agg(stats_dict_list)
+                            .T
+                            .rename(columns={False: 'Short trades',
+                                             True: 'Long trades'}))
 
     return stats_all.join(stats_long_short)
 
@@ -110,12 +127,13 @@ def _groupby_consecutive(txn, max_delta=pd.Timedelta('8h')):
     transactions : pd.DataFrame
 
     """
+
     def vwap(transaction):
         if transaction.amount.sum() == 0:
             warnings.warn('Zero transacted shares, setting vwap to nan.')
             return np.nan
         return (transaction.amount * transaction.price).sum() / \
-            transaction.amount.sum()
+               transaction.amount.sum()
 
     out = []
     for _, t in txn.groupby('symbol'):
@@ -129,8 +147,8 @@ def _groupby_consecutive(txn, max_delta=pd.Timedelta('8h')):
         t['block_time'] = ((t.dt.sub(t.dt.shift(1))) >
                            max_delta).astype(int).cumsum()
         grouped_price = (t.groupby(['block_dir',
-                                   'block_time'])
-                          .apply(vwap))
+                                    'block_time'])
+                         .apply(vwap))
         grouped_price.name = 'price'
         grouped_rest = t.groupby(['block_dir', 'block_time']).agg({
             'amount': 'sum',
@@ -204,7 +222,7 @@ def extract_round_trips(transactions,
         price_stack = deque()
         dt_stack = deque()
         trans_sym['signed_price'] = trans_sym.price * \
-            np.sign(trans_sym.amount)
+                                    np.sign(trans_sym.amount)
         trans_sym['abs_amount'] = trans_sym.amount.abs().astype(int)
         for dt, t in trans_sym.iterrows():
             if t.price < 0:
@@ -214,7 +232,7 @@ def extract_round_trips(transactions,
 
             indiv_prices = [t.signed_price] * t.abs_amount
             if (len(price_stack) == 0) or \
-               (copysign(1, price_stack[-1]) == copysign(1, t.amount)):
+                    (copysign(1, price_stack[-1]) == copysign(1, t.amount)):
                 price_stack.extend(indiv_prices)
                 dt_stack.extend([dt] * len(indiv_prices))
             else:
@@ -225,7 +243,7 @@ def extract_round_trips(transactions,
 
                 for price in indiv_prices:
                     if len(price_stack) != 0 and \
-                       (copysign(1, price_stack[-1]) != copysign(1, price)):
+                            (copysign(1, price_stack[-1]) != copysign(1, price)):
                         # Retrieve first dt, stock-price pair from
                         # stack
                         prev_price = price_stack.popleft()
@@ -255,7 +273,7 @@ def extract_round_trips(transactions,
     if portfolio_value is not None:
         # Need to normalize so that we can join
         pv = pd.DataFrame(portfolio_value,
-                          columns=['portfolio_value'])\
+                          columns=['portfolio_value']) \
             .assign(date=portfolio_value.index)
 
         roundtrips['date'] = roundtrips.close_dt.apply(lambda x:
@@ -264,8 +282,8 @@ def extract_round_trips(transactions,
                                                                  second=0))
 
         tmp = (roundtrips.set_index('date')
-                         .join(pv.set_index('date'), lsuffix='_')
-                         .reset_index())
+               .join(pv.set_index('date'), lsuffix='_')
+               .reset_index())
 
         roundtrips['returns'] = tmp.pnl / tmp.portfolio_value
         roundtrips = roundtrips.drop('date', axis='columns')
@@ -376,9 +394,12 @@ def gen_round_trip_stats(round_trips):
                                            DURATION_STATS)
     stats['returns'] = agg_all_long_short(round_trips, 'returns',
                                           RETURN_STATS)
-
-    stats['symbols'] = \
-        round_trips.groupby('symbol')['returns'].agg(RETURN_STATS).T
+    try:
+        stats['symbols'] = \
+            round_trips.groupby('symbol')['returns'].agg(RETURN_STATS).T
+    except SpecificationError as e:
+        stats['symbols'] = \
+            round_trips.groupby('symbol')['returns'].agg([(k, v) for k, v in RETURN_STATS.items()]).T
 
     return stats
 
@@ -402,7 +423,8 @@ def print_round_trip_stats(round_trips, hide_pos=False):
 
     print_table(stats['summary'], float_format='{:.2f}'.format,
                 name='Summary stats')
-    print_table(stats['pnl'], float_format='${:.2f}'.format, name='PnL stats')
+    # print_table(stats['pnl'], float_format='${:.2f}'.format, name='PnL stats')
+    print_table(stats['pnl'], float_format='{:.2f}'.format, name='PnL stats Money')  # 去掉货币符号$
     print_table(stats['duration'], float_format='{:.2f}'.format,
                 name='Duration stats')
     print_table(stats['returns'] * 100, float_format='{:.2f}%'.format,
