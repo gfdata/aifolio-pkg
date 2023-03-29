@@ -284,9 +284,12 @@ def extract_round_trips(transactions,
         tmp = (roundtrips.set_index('date')
                .join(pv.set_index('date'), lsuffix='_')
                .reset_index())
-
-        roundtrips['returns'] = tmp.pnl / tmp.portfolio_value
-        roundtrips = roundtrips.drop('date', axis='columns')
+        # rt_returns表示/使用资金，returns表示/总资金
+        # roundtrips['returns'] = tmp.pnl / tmp.portfolio_value  # 这种写法，可能导致索引错乱，数据对不上
+        # roundtrips = roundtrips.drop('date', axis='columns')
+        tmp['returns'] = tmp.pnl / tmp.portfolio_value
+        cols = [x for x in list(roundtrips.columns) + ['returns'] if x not in ['date']]
+        roundtrips = tmp[cols]
 
     return roundtrips
 

@@ -1,6 +1,15 @@
-1.0.2
+1.0.2dev aifolio.pyfolio092.round_trips.extract_round_trips
+
+* 修复计算存在的问题
+
+aifolio.pyfolio092.plotting.show_profit_attribution
+
+* 统计一般使用sum(returns)
+
+# 1.0.2
 
 pyfolio_tools.parse_rqalpha
+
 * 修复框架结果的转换
 
 # 1.0.1

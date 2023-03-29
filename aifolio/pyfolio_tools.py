@@ -7,6 +7,70 @@ import numpy as np
 import pandas as pd
 
 
+def parse_rqalpha_trans_concat(trans_first, trans):
+    """
+    parse_rqalpha_first 函数得到的首日trans，需要与后面的trans避免重复
+    :param trans_first:
+    :param trans:
+    :return:
+    """
+    day = list(set(trans_first.index.date))
+    assert len(day) == 1
+    after = trans[trans.index.date != day]
+    new = pd.concat([trans_first, after]).sort_index(ascending=True)
+    return new
+
+
+def parse_rqalpha_first(sys_analyser_dict: dict, time_zone='UTC'):
+    """
+    截取的记录第一天就有持仓时，需要对交易记录进行完善；做到尽量完整的开平仓配对
+    :param sys_analyser_dict:
+    :param time_zone:
+    :return: pyfolio transactions 结构
+    """
+    # fixme 好像不用调整后续也能计算pnl；或者参考更规范的写法 aifolio.pyfolio092.round_trips.add_closing_transactions
+    trans_stock = []
+    if 'stock_positions' in sys_analyser_dict.keys():
+        temp = sys_analyser_dict['stock_positions']
+        dt_min = min(temp.index)
+        first = temp[temp.index == dt_min]
+        for ind, se in first.iterrows():
+            se = se.fillna(0)  # 填充nan否则相减为nan
+            each = {
+                'dt': ind,
+                'symbol': se['order_book_id'],
+                'price': se['last_price'],
+                'amount': temp['quantity']
+            }
+            trans_stock.append(each)
+    trans_stock = pd.DataFrame(trans_stock)
+    if not trans_stock.empty:
+        trans_stock.set_index('dt', inplace=True)
+
+    trans_future = []
+    if 'future_positions' in sys_analyser_dict.keys():
+        temp = sys_analyser_dict['future_positions']
+        dt_min = min(temp.index)
+        first = temp[temp.index == dt_min]
+        for ind, se in first.iterrows():
+            se = se.fillna(0)  # 填充nan否则相减为nan
+            each = {
+                'dt': ind,
+                'symbol': se['order_book_id'],
+                'price': se['last_price'],
+                'amount': se['contract_multiplier'] * (se['LONG_quantity'] - se['SHORT_quantity'])
+            }
+            trans_future.append(each)
+    trans_future = pd.DataFrame(trans_future)
+    if not trans_future.empty:
+        trans_future.set_index('dt', inplace=True)
+
+    trans = pd.concat([trans_stock, trans_future])
+    if time_zone:
+        trans.index = trans.index.tz_localize(time_zone)
+    return trans
+
+
 def parse_rqalpha(sys_analyser_dict: dict, time_zone='UTC'):
     """
     解析rqalpha框架的运行结果为pyfolio可使用的数据格式。(mod_sys_analyzer中存储的交易记录)
@@ -93,10 +157,12 @@ def parse_rqalpha(sys_analyser_dict: dict, time_zone='UTC'):
             raise RuntimeError(f"trade组合要求为[BUY SELL]和[OPEN CLOSE]! got {se['side'], se['position_effect']}")
 
     pf_trans['amount'] = trades.apply(_amount_side, axis=1)
-    pf_trans.index = pd.to_datetime(pf_trans.index)
+    pf_trans['dt'] = pd.to_datetime(pf_trans['dt'])
+    pf_trans.set_index('dt', inplace=True)
+
     # 时区问题
     if time_zone:
-        pf_returns.index = pf_returns.index.tz_localize('UTC')
-        pf_po.index = pf_po.index.tz_localize('UTC')
-        pf_trans.index = pf_trans.index.tz_localize('UTC')
+        pf_returns.index = pf_returns.index.tz_localize(time_zone)
+        pf_po.index = pf_po.index.tz_localize(time_zone)
+        pf_trans.index = pf_trans.index.tz_localize(time_zone)
     return pf_returns, pf_po, pf_trans

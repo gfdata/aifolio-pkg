@@ -44,6 +44,7 @@ def customize(func):
     """
     Decorator to set plotting context and axes style during function call.
     """
+
     @wraps(func)
     def call_w_context(*args, **kwargs):
         set_context = kwargs.pop('set_context', True)
@@ -52,6 +53,7 @@ def customize(func):
                 return func(*args, **kwargs)
         else:
             return func(*args, **kwargs)
+
     return call_w_context
 
 
@@ -436,7 +438,7 @@ def plot_drawdown_periods(returns, top=10, ax=None, **kwargs):
     lim = ax.get_ylim()
     colors = sns.cubehelix_palette(len(df_drawdowns))[::-1]
     for i, (peak, recovery) in df_drawdowns[
-            ['Peak date', 'Recovery date']].iterrows():
+        ['Peak date', 'Recovery date']].iterrows():
         if pd.isnull(recovery):
             recovery = returns.index[-1]
         ax.fill_between((peak, recovery),
@@ -1783,7 +1785,7 @@ def plot_round_trip_lifetimes(round_trips, disp_amount=16, lsize=18, ax=None):
     return ax
 
 
-def show_profit_attribution(round_trips):
+def show_profit_attribution(round_trips, group='returns'):
     """
     Prints the share of total PnL contributed by each
     traded name.
@@ -1801,19 +1803,35 @@ def show_profit_attribution(round_trips):
     ax : matplotlib.Axes
         The axes that were plotted on.
     """
+    if group == 'pnl/sum':
+        # round_trips['pnl'].sum()可能为零，或者为负时导致盈利品种反而成负数；->因此使用收益率之和，或者PnL之和
+        total_pnl = round_trips['pnl'].sum()
+        pnl_attribution = round_trips.groupby('symbol')['pnl'].sum() / total_pnl
+        name = 'Profitability (PnL / PnL total) per name'
+        float_format = '{:.2%}'.format
 
-    total_pnl = round_trips['pnl'].sum()
-    pnl_attribution = round_trips.groupby('symbol')['pnl'].sum() / total_pnl
+    elif group == 'returns':
+        pnl_attribution = round_trips.groupby('symbol')['returns'].sum()  # 不能与收益的returns完全匹配上，因为除的是过程中的value
+        name = 'Profitability (sum(PnL/value)) per name'
+        float_format = '{:.2%}'.format
+
+    elif group == 'pnl':
+        pnl_attribution = round_trips.groupby('symbol')['pnl'].sum()  # pnl能完全匹配，但不便于展示或相对比较
+        name = 'Profitability PnL per name'
+        float_format = '{:.2f}'.format
+
+    else:
+        raise ValueError(f'params `group` support (pnl/sum returns pnl) got {group}')
+
     pnl_attribution.name = ''
-
     pnl_attribution.index = pnl_attribution.index.map(utils.format_asset)
     utils.print_table(
         pnl_attribution.sort_values(
             inplace=False,
             ascending=False,
         ),
-        name='Profitability (PnL / PnL total) per name',
-        float_format='{:.2%}'.format,
+        name=name,
+        float_format=float_format,
     )
 
 
